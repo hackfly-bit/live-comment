@@ -1,0 +1,98 @@
+// schema.prisma
+datasource db {
+  provider = "mysql" // Use MySQL as the provider
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x", "linux-arm64-openssl-1.1.x", "rhel-openssl-3.0.x"]
+}
+
+// User model to store user information
+model User {
+  id            String      @id @default(cuid())
+  name          String?
+  email         String?     @unique
+  emailVerified DateTime?
+  image         String?
+  password      String // Add password field for authentication
+  role          String      @default("user") // User role (admin/user)
+  accounts      Account[] // Related accounts
+  sessions      Session[] // Related sessions
+  messages      Message[] // Related messages
+  guestRooms    GuestRoom[] // Relation to GuestRoom for rooms the user belongs to
+}
+
+// Account model for social login providers
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+// Session model to manage user sessions
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// Room model for chat rooms
+model Room {
+  id         String      @id @default(cuid())
+  name       String // Name of the chat room
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  messages   Message[] // Messages in this room
+  guestRooms GuestRoom[] // Relation to GuestRoom for users in this room
+}
+
+// Message model for storing chat messages
+model Message {
+  id        String   @id @default(cuid())
+  content   String // Message content
+  createdAt DateTime @default(now())
+  guestId   String
+  roomId    String
+
+  guest  Guest   @relation(fields: [guestId], references: [id], onDelete: Cascade)
+  room   Room    @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  User   User?   @relation(fields: [userId], references: [id])
+  userId String?
+}
+
+// GuestRoom model for many-to-many relationship between users and rooms
+model GuestRoom {
+  id      String @id @default(cuid())
+  guestId String
+  roomId  String
+
+  guest User @relation(fields: [guestId], references: [id], onDelete: Cascade) // Change to User if guests are users
+  room  Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@unique([guestId, roomId]) // Unique user-room pair
+}
+
+// Guest model for non-authenticated users
+model Guest {
+  id        String    @id @default(cuid())
+  username  String
+  createdAt DateTime  @default(now())
+  messages  Message[] // If guests can send messages
+}
